@@ -40,13 +40,16 @@ This left 52 predictors available which was computationally heavy.  So I tried t
     rfProfile
     predictors( rfProfile )
 
-This listed the 12 best predictors.  I tried the identified predictors in a new model.  And viewed its results in training and validation tests.
+This listed the 12 best predictors.  I tried the identified predictors in a new model and viewed its results.
 
     model <- train( classe~roll_belt + yaw_belt + magnet_dumbbell_z + magnet_dumbbell_y + pitch_belt + pitch_forearm + accel_dumbbell_y + roll_forearm + magnet_forearm_z + roll_dumbbell + accel_dumbbell_z + roll_arm  , data=train, method='rf',trControl=trainControl( method='oob'), tuneGrid=expand.grid( mtry=3))
     model
-    confusionMatrix( predict( model, validate ), validate$classe )
 
-I iterated the steps above a few times trying smaller and larges 'sizes' in `rfe()` to get the best fit in the validation data.  The ultimate result was 12 variables that got an out-of-sample accuracy on the validation set of 98.9%.
+I iterated the steps above a few times trying smaller and larges 'sizes' in `rfe()` to get the best fit in the training set.  I tried it on the validation set.
+
+    confusionMatrix( predict( model, validate ), validate$classe )
+    
+The ultimate result was 12 variables that got an out-of-sample accuracy on the validation set of 98.9%.
 
 One choice made during this analysis was to focus on 'random forest' models.  They ran faster than than other models and got superior fit.  Other models were tried in the `rfe()` step and subsequent model fit.
 
