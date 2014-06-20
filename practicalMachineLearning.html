@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<!-- saved from url=(0014)about:internet -->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta http-equiv="x-ua-compatible" content="IE=9" >
+
+<title>Annotated R code - Practical Machine Learning Course Project</title>
+
+<style type="text/css">
+body, td {
+   font-family: sans-serif;
+   background-color: white;
+   font-size: 12px;
+   margin: 8px;
+}
+
+tt, code, pre {
+   font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace;
+}
+
+h1 { 
+   font-size:2.2em; 
+}
+
+h2 { 
+   font-size:1.8em; 
+}
+
+h3 { 
+   font-size:1.4em; 
+}
+
+h4 { 
+   font-size:1.0em; 
+}
+
+h5 { 
+   font-size:0.9em; 
+}
+
+h6 { 
+   font-size:0.8em; 
+}
+
+a:visited {
+   color: rgb(50%, 0%, 50%);
+}
+
+pre {	
+   margin-top: 0;
+   max-width: 95%;
+   border: 1px solid #ccc;
+   white-space: pre-wrap;
+}
+
+pre code {
+   display: block; padding: 0.5em;
+}
+
+code.r, code.cpp {
+   background-color: #F8F8F8;
+}
+
+table, td, th {
+  border: none;
+}
+
+blockquote {
+   color:#666666;
+   margin:0;
+   padding-left: 1em;
+   border-left: 0.5em #EEE solid;
+}
+
+hr {
+   height: 0px;
+   border-bottom: none;
+   border-top-width: thin;
+   border-top-style: dotted;
+   border-top-color: #999999;
+}
+
+@media print {
+   * { 
+      background: transparent !important; 
+      color: black !important; 
+      filter:none !important; 
+      -ms-filter: none !important; 
+   }
+
+   body { 
+      font-size:12pt; 
+      max-width:100%; 
+   }
+       
+   a, a:visited { 
+      text-decoration: underline; 
+   }
+
+   hr { 
+      visibility: hidden;
+      page-break-before: always;
+   }
+
+   pre, blockquote { 
+      padding-right: 1em; 
+      page-break-inside: avoid; 
+   }
+
+   tr, img { 
+      page-break-inside: avoid; 
+   }
+
+   img { 
+      max-width: 100% !important; 
+   }
+
+   @page :left { 
+      margin: 15mm 20mm 15mm 10mm; 
+   }
+     
+   @page :right { 
+      margin: 15mm 10mm 15mm 20mm; 
+   }
+
+   p, h2, h3 { 
+      orphans: 3; widows: 3; 
+   }
+
+   h2, h3 { 
+      page-break-after: avoid; 
+   }
+}
+
+</style>
+
+
+
+
+
+</head>
+
+<body>
+<h1>Annotated R code - Practical Machine Learning Course Project</h1>
+
+<p>Load libraries and data.</p>
+
+<pre><code>library( caret );
+library( doMC );
+registerDoMC( cores = 2 );
+projectTrain &lt;- read.csv( &#39;~/Downloads/pml-training.csv&#39; );
+</code></pre>
+
+<p>Split the data into training and validation sets.</p>
+
+<pre><code>inTrain &lt;- createDataPartition( projectTrain$classe, p=0.7, list=FALSE);
+train &lt;- projectTrain[ inTrain,];
+validate &lt;- projectTrain[ -inTrain,];
+</code></pre>
+
+<p>Visually inspecting data shows it is time series for 6 different user_names with the dependent variable &#39;classe&#39; occurring in groups if the data is sorted by time.  So I tried a simple model with those variables.</p>
+
+<pre><code>simpleModel &lt;- train( classe ~ user_name + num_window, data=train, method=&#39;rf&#39;, trControl=trainControl( method=&#39;oob&#39; ), tuneGrid = expand.grid( mtry = 6 ));
+</code></pre>
+
+<p>Inspect model results in training and validation data.</p>
+
+<pre><code>simpleModel;
+confusionMatrix( predict( simpleModel, validate ), validate$classe );
+</code></pre>
+
+<p>The model is a perfect fit in the training data and 99.9% accurate in out-of-sample validation.  So I created the answers for course project based on test set.</p>
+
+<pre><code>test &lt;- read.csv( &#39;~/downloads/pml-testing.csv&#39; );
+answers &lt;- predict( simpleModel, test );
+</code></pre>
+
+<p>To make a more real world example I removed columns with #N/A or &#39;&#39; entries and then removed the &#39;user_name&#39; and all time related columns.  This seems more useful in the real world where exercise feedback will need to respond to situations where the exercise style in the previous period is not known.</p>
+
+<pre><code>train &lt;- train [, colSums( is.na( train ) ) == 0];
+train &lt;- train [, colSums(  train == &#39;&#39; ) == 0];
+train &lt;- train [, 8:60];
+</code></pre>
+
+<p>This left 52 predictors available which was computationally heavy.  So I tried to identify the most interesting predictors.</p>
+
+<pre><code>ctrl &lt;- rfeControl( functions=rfFuncs, method=&#39;oob&#39;, index=TRUE );
+rfProfile &lt;- rfe( train[,1:52], train[,53], sizes=12 , rfeControl=ctrl );
+rfProfile;
+predictors( rfProfile );
+</code></pre>
+
+<p>This listed the 12 best predictors.  I tried the identified predictors in a new model.  And viewed its results in training and validation tests.</p>
+
+<pre><code>model &lt;- train( classe ~ roll_belt + yaw_belt + magnet_dumbbell_z + magnet_dumbbell_y + pitch_belt + pitch_forearm + accel_dumbbell_y + roll_forearm + magnet_forearm_z + roll_dumbbell + accel_dumbbell_z + roll_arm  , data=train, method=&#39;rf&#39;,trControl=trainControl( method=&#39;oob&#39;), tuneGrid=expand.grid( mtry=3));
+model;
+</code></pre>
+
+<p>I iterated the steps above a few times trying smaller and larges &#39;sizes&#39; in <code>rfe()</code> to get the best fit in the training data.  </p>
+
+<p>The ultimate result was 12 variables that got an out-of-sample accuracy on the validation set of 98.9%.</p>
+
+<pre><code>confusionMatrix( predict( model, validate ), validate$classe );
+</code></pre>
+
+<p>One choice made during this analysis was to focus on &#39;random forest&#39; models.  They ran faster than than other models and achieved superior fit.  Other models were tried in the <code>rfe()</code> step and subsequent model fit.</p>
+
+<p>I also used &#39;oob&#39; ( out of bag ) as the error measure in random forest models.  It gave a slightly better fit other methods like &#39;cv&#39; and &#39;LOOCV&#39;.  It also ran faster which was mostly noticeable when working with all 52 variables.</p>
+
+</body>
+
+</html>
+
